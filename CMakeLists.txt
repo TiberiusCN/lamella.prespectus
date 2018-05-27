@@ -10,7 +10,7 @@ pkg_check_modules(GLEW REQUIRED glew)
 include_directories(${GLEW_INCLUDE_DIRS})
 link_directories(${GLEW_LIBRARY_DIRS})
 
-add_executable(prespectus src/main.c)
+add_executable(prespectus src/mesh.c src/shaders.c src/main.c )
 
 add_definitions(${SDL2_CFLAGS_OTHER})
 add_definitions(${GLEW_CFLAGS_OTHER})

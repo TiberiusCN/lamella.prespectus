@@ -1,15 +1,18 @@
+#include "main.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #include <GL/gl.h>
 
-#define SS_EMPTY 0
-#define SS_LOOP 1
+#include "shaders.h"
+#include "mesh.h"
 
 char gFifoBuf[2048];
 SDL_Window* gWnd;
@@ -49,9 +52,10 @@ int sdl_init()
 
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 24);
 
-  if(GLEW_OK != glewInit())
+  int res = glewInit();
+  if(GLEW_OK != res)
   {
-    printf("Error: GLEW failed!\n");
+    printf("Error: GLEW failed: %s\n", glewGetErrorString(res));
     return -4;
   }
 
@@ -106,42 +110,73 @@ int main(int argc, char** argv)
       remove("/tmp/lamella/prespectus");
       return -2;
     }
-    if(res)
+    gFifoBuf[res] = 0;
+    const char* seeker = gFifoBuf;
+    while(*seeker)
     {
-      if(!strncmp(gFifoBuf, "exit!", 5)) break;
-      if(!strncmp(gFifoBuf, "start", 5))
+      if(res)
       {
-        switch(sdlState)
+        if(!strncmp(seeker, "exit!", 5)) goto exitmark;
+        else if(!strncmp(seeker, "start", 5))
         {
-        case SS_EMPTY:
-          if(!sdl_init()) sdlState = SS_LOOP;
-          break;
-        case SS_LOOP:
-          printf("SDL already exists!\n");
+          switch(sdlState)
+          {
+          case SS_EMPTY:
+            if(!sdl_init())
+            {
+              if(res = shaders_init())
+              {
+                shaders_error_print(res);
+                sdl_free();
+              } else sdlState = SS_LOOP;
+            }
+            break;
+          case SS_LOOP:
+            printf("SDL already exists!\n");
+            break;
+          }
+        } else
+        if(!strncmp(seeker, "stop", 4))
+        {
+          switch(sdlState)
+          {
+          case SS_EMPTY:
+            printf("SDL is empty!\n");
+            break;
+          case SS_LOOP:
+            sdl_free();
+            sdlState = SS_EMPTY;
+            break;
+          }
+        } else
+        if(!strncmp(seeker, "shader ", 7))
+        {
+          seeker += 7;
+          SDL_GL_MakeCurrent(gWnd, gContext);
+          switch(sdlState)
+          {
+          case SS_EMPTY:
+            printf("SDL is empty!\n");
+            break;
+          case SS_LOOP:
+            if(res = shaders_command(seeker)) shaders_error_print(res);
+            break;
+          }
+          SDL_GL_MakeCurrent(gWnd, 0);
+        } else {
+          printf("unrecognized!\n");
           break;
         }
-      } else
-      if(!strncmp(gFifoBuf, "stop", 4))
-      {
-        switch(sdlState)
-        {
-        case SS_EMPTY:
-          printf("SDL is empty!\n");
-          break;
-        case SS_LOOP:
-          sdl_free();
-          sdlState = SS_EMPTY;
-          break;
-        }
-      } else {
-        printf("unrecognized!\n");
       }
+      while(*seeker != '\n') seeker++;
+      while(*seeker == '\n') seeker++;
     }
     if(sdlState == SS_LOOP)
     {
       if(sdl_loop()) sdlState = SS_EMPTY;
     }
   }
+exitmark:
   if(sdlState != SS_EMPTY) sdl_free();
   close(fd);
   remove("/tmp/lamella/prespectus");
