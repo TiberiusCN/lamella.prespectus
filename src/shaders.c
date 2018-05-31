@@ -145,6 +145,32 @@ int shaders_free()
 {
 }
 
+int program_attach(const char* progname, const char* shadername)
+{
+  int progn = program_find(progname);
+  int shan = shader_find(shadername);
+  if((progn == -1) || (shan == -1)) return E_SHADERS_BAD_NAME;
+  glAttachShader(prog[progn]->program, sh[shan]->shader);
+  return E_SHADERS_OK;
+}
+
+int program_link(const char* name)
+{
+  int progn = program_find(name);
+  if(progn == -1) return E_SHADERS_BAD_NAME;
+  glLinkProgram(prog[progn]->program);
+  GLint success;
+  GLchar log[512];
+  glGetProgramiv(prog[progn]->program, GL_LINK_STATUS, &success);
+  if(!success)
+  {
+    glGetProgramInfoLog(prog[progn]->program, 512, 0, log);
+    printf("Link error: %s\n", log);
+    return E_SHADERS_LINK;
+  }
+  return E_SHADERS_OK;
+}
+
 int shaders_command(const char* com)
 {
   if(!strncmp(com, "shader ", 7))
@@ -178,6 +204,7 @@ int shaders_command(const char* com)
   } else 
   if(!strncmp(com, "program ", 8))
   {
+    com += 8;
     if(!strncmp(com, "create ", 7))
     {
       com += 7;
@@ -201,6 +228,30 @@ int shaders_command(const char* com)
         return E_SHADERS_UNKNOWN_COMMAND;
       }
       return program_free(name);
+    }
+    if(!strncmp(com, "attach ", 7))
+    {
+      com += 7;
+      char progname[512], shadername[512];
+      int s = sscanf(com, "%s %s", progname, shadername);
+      if(s != 2)
+      {
+        printf("Shaders: expected 2, but %d found in <%s>\n", s, com);
+        return E_SHADERS_UNKNOWN_COMMAND;
+      }
+      return program_attach(progname, shadername);
+    }
+    if(!strncmp(com, "link ", 5))
+    {
+      com += 5;
+      char name[512];
+      int s = sscanf(com, "%s", name);
+      if(s != 1)
+      {
+        printf("Shaders: expected 1, but %d found in <%s>\n", s, com);
+        return E_SHADERS_UNKNOWN_COMMAND;
+      }
+      return program_link(name);
     }
   }
   return E_SHADERS_UNKNOWN_COMMAND;
